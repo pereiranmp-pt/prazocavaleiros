@@ -1,0 +1,20 @@
+# Quanto Falta? — Configuração
+# Define até 2 contagens regressivas.
+# Formato de cada entrada:
+#   LABEL_1=Texto do label (ex: Férias, Projeto X, Reunião)
+#   DATE_1=YYYY-MM-DD HH:MM
+#   LABEL_2=Texto do segundo label
+#   DATE_2=YYYY-MM-DD HH:MM
+#
+# Feriados a excluir (true/false):
+#   FERIADOS_NACIONAIS=true
+#   FERIADOS_MUNICIPAIS=true
+
+LABEL_1=Férias de Verão
+DATE_1=2026-07-01 00:00
+
+LABEL_2=Fim do Ano
+DATE_2=2026-12-31 00:00
+
+FERIADOS_NACIONAIS=true
+FERIADOS_MUNICIPAIS=true

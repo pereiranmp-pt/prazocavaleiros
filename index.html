@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1A1410">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quanto Falta?">
+<meta name="description" content="Contagem regressiva de dias úteis · Lisboa">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<title>Quanto Falta?</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream:      #F2EDE3;
+    --ink:        #16120E;
+    --gold:       #C9A227;
+    --terracotta: #C4622D;
+    --steel:      #8A8FA8;
+    --muted:      #7A6F62;
+    --border:     rgba(242,237,227,0.09);
+    --safe-top:    env(safe-area-inset-top,  0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html, body { height: 100%; overscroll-behavior: none; }
+
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15%  8%,  rgba(201,162,39,0.10)  0%, transparent 50%),
+      radial-gradient(ellipse at 85% 92%,  rgba(196,98,45,0.08)   0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%,  rgba(138,143,168,0.03) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(242,237,227,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(242,237,227,0.02) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+
+  /* ── Loading ── */
+  #loading {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--ink);
+    transition: opacity 0.5s ease;
+  }
+  #loading.fade-out { opacity: 0; pointer-events: none; }
+  .loading-text {
+    margin-top: 1rem; font-size: 0.6rem;
+    letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted);
+  }
+  @keyframes pulse {
+    0%,100% { opacity:0.4; transform:scale(0.95); }
+    50%     { opacity:1;   transform:scale(1.05); }
+  }
+  #loading img { animation: pulse 1.5s ease-in-out infinite; border-radius: 16px; }
+
+  /* ── App shell ── */
+  #app {
+    flex: 1; display: flex; flex-direction: column;
+    position: relative; z-index: 1;
+    opacity: 0; transition: opacity 0.6s ease 0.2s;
+  }
+  #app.visible { opacity: 1; }
+
+  /* ── Top bar ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.4rem 0;
+    flex-shrink: 0;
+  }
+  .app-name {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1rem; font-weight: 700; color: var(--cream); letter-spacing: 0.02em;
+  }
+  .app-name span { color: var(--gold); }
+  .btn-settings {
+    background: none; border: none; color: var(--muted); font-size: 1.1rem;
+    cursor: pointer; padding: 0.3rem;
+    -webkit-tap-highlight-color: transparent; transition: color 0.2s;
+  }
+  .btn-settings:active { color: var(--cream); }
+
+  /* ── Two countdowns ── */
+  .countdowns-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 1.4rem;
+    gap: 0;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  /* Each countdown block */
+  .cd-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 0;
+    position: relative;
+  }
+
+  /* Separator between the two blocks */
+  .cd-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(242,237,227,0.12), transparent);
+    flex-shrink: 0;
+    margin: 0 2rem;
+  }
+
+  /* Label from config */
+  .cd-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+    text-align: center;
+  }
+
+  /* Big days number */
+  .cd-number {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: clamp(4rem, 20vw, 7rem);
+    font-weight: 900;
+    line-height: 0.9;
+    color: var(--gold);
+    letter-spacing: -0.03em;
+    text-shadow: 0 0 50px rgba(201,162,39,0.2);
+    text-align: center;
+  }
+
+  .cd-unit {
+    font-size: 0.62rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(242,237,227,0.3);
+    margin-top: 0.4rem;
+    text-align: center;
+  }
+
+  /* Clock row */
+  .cd-clock {
+    display: flex;
+    align-items: center;
+    margin-top: 0.5rem;
+    gap: 0;
+  }
+
+  .ck-unit {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 0.45rem; gap: 0.05rem;
+  }
+  .ck-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: clamp(1.1rem, 5.5vw, 1.6rem);
+    font-weight: 400;
+    color: rgba(242,237,227,0.65);
+    letter-spacing: 0.04em;
+    min-width: 2ch; text-align: center; line-height: 1;
+    transition: color 0.15s;
+  }
+  .ck-val.tick { color: var(--gold); }
+  .ck-lbl {
+    font-size: 0.4rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(242,237,227,0.18);
+  }
+  .ck-colon {
+    font-size: 1.2rem; color: rgba(242,237,227,0.12);
+    font-weight: 300; line-height: 1;
+    padding-bottom: 0.3rem; align-self: flex-end; margin-bottom: 0.3rem;
+  }
+
+  /* ── Bottom panel ── */
+  .bottom-panel {
+    flex-shrink: 0;
+    padding: 0 1.4rem;
+    padding-bottom: calc(0.8rem + var(--safe-bottom));
+    border-top: 1px solid var(--border);
+  }
+
+  .hol-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; background: none; border: none;
+    color: var(--muted); font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 0.65rem 0; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: color 0.2s;
+  }
+  .hol-btn:active { color: var(--cream); }
+  .hol-chevron { transition: transform 0.3s; display: inline-block; }
+  .hol-chevron.open { transform: rotate(180deg); }
+
+  .hol-drawer {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.35s ease;
+  }
+  .hol-drawer.open { max-height: 45dvh; overflow-y: auto; }
+
+  .h-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(242,237,227,0.05); gap: 0.5rem;
+  }
+  .h-left { flex:1; min-width:0; }
+  .h-name { font-size: 0.65rem; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .h-date { font-size: 0.54rem; color: var(--muted); margin-top: 0.1rem; }
+  .h-badge {
+    font-size: 0.46rem; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.12rem 0.35rem; border-radius: 3px; flex-shrink: 0;
+  }
+  .h-badge.nacional  { background: rgba(242,237,227,0.08); color: rgba(242,237,227,0.4); }
+  .h-badge.municipal { background: rgba(92,122,92,0.22);   color: #8FC48F; }
+  .h-badge.excluded  { background: rgba(201,162,39,0.22);  color: #E8C878; }
+
+  /* ── Settings sheet ── */
+  .settings-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(22,18,14,0.75); backdrop-filter: blur(4px);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .settings-overlay.open { opacity: 1; pointer-events: all; }
+
+  .settings-sheet {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 51;
+    background: #1E1A14;
+    border-top: 1px solid rgba(201,162,39,0.18);
+    border-radius: 16px 16px 0 0;
+    padding: 1.4rem 1.4rem;
+    padding-bottom: calc(1.4rem + var(--safe-bottom));
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.34,1,0.64,1);
+    overflow-y: auto; max-height: 92dvh;
+  }
+  .settings-sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: rgba(242,237,227,0.2);
+    margin: 0 auto 1.2rem;
+  }
+  .sheet-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem; font-weight: 700; color: var(--cream); margin-bottom: 1.2rem;
+  }
+  .sheet-title span { color: var(--gold); }
+
+  .sheet-section {
+    margin-bottom: 1.2rem;
+    padding: 1rem;
+    background: rgba(242,237,227,0.03);
+    border: 1px solid rgba(242,237,227,0.07);
+    border-radius: 8px;
+  }
+  .sheet-section-title {
+    font-size: 0.52rem; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 0.8rem; opacity: 0.8;
+  }
+
+  .sheet-label {
+    font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.35rem; margin-top: 0.7rem;
+  }
+  .sheet-label:first-of-type { margin-top: 0; }
+
+  input[type="text"],
+  input[type="date"],
+  input[type="time"] {
+    background: rgba(242,237,227,0.07);
+    border: 1px solid rgba(242,237,227,0.12);
+    border-radius: 6px;
+    padding: 0.7rem 0.85rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.88rem; color: var(--cream);
+    outline: none; width: 100%;
+    transition: border-color 0.2s; -webkit-appearance: none; color-scheme: dark;
+  }
+  input[type="text"]::placeholder { color: var(--muted); }
+  input[type="text"]:focus,
+  input[type="date"]:focus,
+  input[type="time"]:focus { border-color: var(--gold); }
+
+  .date-time-row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
+  .date-time-row input[type="time"] { width: 100px; }
+
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.7rem 0.85rem;
+    background: rgba(242,237,227,0.04);
+    border: 1px solid rgba(242,237,227,0.07);
+    border-radius: 6px; margin-bottom: 0.4rem; cursor: pointer;
+  }
+  .toggle-text { font-size: 0.74rem; color: var(--cream); }
+  .toggle-sub  { font-size: 0.56rem; color: var(--muted); margin-top: 0.06rem; }
+
+  .switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+  .switch input { display: none; }
+  .switch-track {
+    position: absolute; inset: 0;
+    background: rgba(242,237,227,0.15); border-radius: 12px; transition: background 0.25s;
+  }
+  .switch input:checked ~ .switch-track { background: var(--gold); }
+  .switch-thumb {
+    position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    background: white; border-radius: 50%;
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  }
+  .switch input:checked ~ .switch-thumb { transform: translateX(18px); }
+
+  .btn-apply {
+    width: 100%; margin-top: 1rem; padding: 0.85rem;
+    background: var(--gold); color: var(--ink);
+    border: none; border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-apply:active { opacity: 0.85; transform: scale(0.98); }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <img src="icon-192.png" width="72" height="72" alt="">
+  <p class="loading-text">Quanto Falta?</p>
+</div>
+
+<!-- App -->
+<div id="app">
+
+  <div class="topbar">
+    <div class="app-name">Quanto <span>Falta?</span></div>
+    <button class="btn-settings" id="btnSettings">⚙</button>
+  </div>
+
+  <!-- Two countdown blocks -->
+  <div class="countdowns-wrap">
+
+    <div class="cd-block" id="cd1">
+      <div class="cd-label" id="label1">—</div>
+      <div class="cd-number" id="days1">—</div>
+      <div class="cd-unit"  id="unit1">dias</div>
+      <div class="cd-clock">
+        <div class="ck-unit"><span class="ck-val" id="h1">00</span><span class="ck-lbl">h</span></div>
+        <span class="ck-colon">:</span>
+        <div class="ck-unit"><span class="ck-val" id="m1">00</span><span class="ck-lbl">min</span></div>
+        <span class="ck-colon">:</span>
+        <div class="ck-unit"><span class="ck-val" id="s1">00</span><span class="ck-lbl">seg</span></div>
+      </div>
+    </div>
+
+    <div class="cd-divider"></div>
+
+    <div class="cd-block" id="cd2">
+      <div class="cd-label" id="label2">—</div>
+      <div class="cd-number" id="days2">—</div>
+      <div class="cd-unit"  id="unit2">dias</div>
+      <div class="cd-clock">
+        <div class="ck-unit"><span class="ck-val" id="h2">00</span><span class="ck-lbl">h</span></div>
+        <span class="ck-colon">:</span>
+        <div class="ck-unit"><span class="ck-val" id="m2">00</span><span class="ck-lbl">min</span></div>
+        <span class="ck-colon">:</span>
+        <div class="ck-unit"><span class="ck-val" id="s2">00</span><span class="ck-lbl">seg</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom-panel">
+    <button class="hol-btn" id="holBtn">
+      Feriados considerados
+      <span class="hol-chevron" id="holChevron">▾</span>
+    </button>
+    <div class="hol-drawer" id="holDrawer"></div>
+  </div>
+
+</div>
+
+<!-- Settings -->
+<div class="settings-overlay" id="settingsOverlay"></div>
+<div class="settings-sheet" id="settingsSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Configurações <span>⚙</span></div>
+
+  <div class="sheet-section">
+    <div class="sheet-section-title">Contagem 1</div>
+    <div class="sheet-label">Label</div>
+    <input type="text" id="cfgLabel1" placeholder="ex: Férias de Verão" maxlength="40">
+    <div class="sheet-label">Data e hora alvo</div>
+    <div class="date-time-row">
+      <input type="date" id="cfgDate1">
+      <input type="time" id="cfgTime1">
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-section-title">Contagem 2</div>
+    <div class="sheet-label">Label</div>
+    <input type="text" id="cfgLabel2" placeholder="ex: Fim do Ano" maxlength="40">
+    <div class="sheet-label">Data e hora alvo</div>
+    <div class="date-time-row">
+      <input type="date" id="cfgDate2">
+      <input type="time" id="cfgTime2">
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-section-title">Feriados a excluir</div>
+    <label class="toggle-row">
+      <div>
+        <div class="toggle-text">Feriados Nacionais</div>
+        <div class="toggle-sub">Páscoa, Corpus Christi, fixos…</div>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="chkNacional" checked>
+        <div class="switch-track"></div><div class="switch-thumb"></div>
+      </div>
+    </label>
+    <label class="toggle-row">
+      <div>
+        <div class="toggle-text">Municipais de Lisboa</div>
+        <div class="toggle-sub">Santo António — 13 de Junho</div>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="chkMunicipal" checked>
+        <div class="switch-track"></div><div class="switch-thumb"></div>
+      </div>
+    </label>
+  </div>
+
+  <button class="btn-apply" id="btnApply">Aplicar</button>
+</div>
+
+<script>
+// ── Service Worker ──
+if ('serviceWorker' in navigator)
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+
+// ── Holidays engine ──
+const NACIONAL_FIXED = [
+  [0,1,"Ano Novo"],[3,25,"Dia da Liberdade"],[4,1,"Dia do Trabalhador"],
+  [5,10,"Dia de Portugal, Camões e das Comunidades"],[7,15,"Assunção de Nossa Senhora"],
+  [9,5,"Implantação da República"],[10,1,"Dia de Todos os Santos"],
+  [10,2,"Dia de Finados"],[11,1,"Restauração da Independência"],
+  [11,8,"Imaculada Conceição"],[11,25,"Natal"],
+];
+const MUNICIPAL_FIXED = [[5,13,"Santo António de Lisboa"]];
+
+function easter(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+        l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*m+114)/31)-1,dy=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo,dy);
+}
+function addD(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+
+function holidaysForYear(y,incNac,incMun){
+  const list=[];
+  if(incNac){
+    NACIONAL_FIXED.forEach(([m,d,name])=>list.push({date:new Date(y,m,d),name,type:'nacional'}));
+    const e=easter(y);
+    list.push({date:addD(e,-47),name:"Carnaval / Terça-Feira Gorda",type:'nacional'});
+    list.push({date:addD(e,-2), name:"Sexta-Feira Santa",           type:'nacional'});
+    list.push({date:e,          name:"Páscoa",                       type:'nacional'});
+    list.push({date:addD(e,60), name:"Corpo de Deus",                type:'nacional'});
+  }
+  if(incMun)
+    MUNICIPAL_FIXED.forEach(([m,d,name])=>list.push({date:new Date(y,m,d),name,type:'municipal'}));
+  return list;
+}
+
+function dk(d){return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}
+
+function countWorkdays(start,end,incNac,incMun){
+  if(!start||!end||end<start) return {work:0,hols:0};
+  const set=new Set();
+  for(let y=start.getFullYear();y<=end.getFullYear();y++)
+    holidaysForYear(y,incNac,incMun).forEach(h=>set.add(dk(h.date)));
+  let work=0,hols=0;
+  const cur=new Date(start);
+  while(cur<=end){
+    const dow=cur.getDay();
+    if(dow!==0&&dow!==6){set.has(dk(cur))?hols++:work++;}
+    cur.setDate(cur.getDate()+1);
+  }
+  return{work,hols};
+}
+
+// ── State ──
+const DEFAULTS = [
+  {label:'Férias de Verão', date: new Date('2026-07-01T00:00:00')},
+  {label:'Fim do Ano',      date: new Date('2026-12-31T00:00:00')},
+];
+let entries = [{...DEFAULTS[0]}, {...DEFAULTS[1]}];
+let incNac=true, incMun=true;
+let tickerID=null;
+
+// ── Parse config.txt ──
+async function loadConfig(){
+  try{
+    const r=await fetch('./config.txt?_='+Date.now());
+    if(!r.ok) throw 0;
+    const txt=await r.text();
+    const get=(key)=>{const m=txt.match(new RegExp(key+'\\s*=\\s*(.+)'));return m?m[1].trim():null;};
+
+    const l1=get('LABEL_1'), d1=get('DATE_1');
+    const l2=get('LABEL_2'), d2=get('DATE_2');
+    const fn=get('FERIADOS_NACIONAIS'), fm=get('FERIADOS_MUNICIPAIS');
+
+    if(l1) entries[0].label=l1;
+    if(d1){const p=new Date(d1.replace(' ','T'));if(!isNaN(p)) entries[0].date=p;}
+    if(l2) entries[1].label=l2;
+    if(d2){const p=new Date(d2.replace(' ','T'));if(!isNaN(p)) entries[1].date=p;}
+    if(fn) incNac=(fn.toLowerCase()==='true');
+    if(fm) incMun=(fm.toLowerCase()==='true');
+  }catch(e){}
+}
+
+// ── Render days ──
+function renderDays(){
+  const now=new Date();
+  const todayMid=new Date(now); todayMid.setHours(0,0,0,0);
+
+  entries.forEach((en,i)=>{
+    const idx=i+1;
+    const endDay=new Date(en.date); endDay.setHours(0,0,0,0);
+    const {work,hols}=countWorkdays(todayMid,endDay,incNac,incMun);
+    document.getElementById('label'+idx).textContent=en.label.toUpperCase();
+    document.getElementById('days'+idx).textContent=work.toLocaleString('pt-PT');
+    document.getElementById('unit'+idx).textContent=work===1?'Dia':'Dias';
+  });
+
+  buildDrawer();
+}
+
+// ── Ticker ──
+function pad(n){return String(n).padStart(2,'0');}
+
+function tick(){
+  const now=new Date();
+  const eod=new Date(); eod.setHours(23,59,59,999);
+  const diff=Math.max(0,eod-now);
+  const tot=Math.floor(diff/1000);
+  const h=Math.floor(tot/3600),m=Math.floor((tot%3600)/60),s=tot%60;
+
+  // Same clock for both countdowns
+  [1,2].forEach(i=>{
+    const elS=document.getElementById('s'+i);
+    const ns=pad(s);
+    if(elS.textContent!==ns){
+      elS.classList.add('tick');
+      setTimeout(()=>elS.classList.remove('tick'),180);
+    }
+    document.getElementById('h'+i).textContent=pad(h);
+    document.getElementById('m'+i).textContent=pad(m);
+    elS.textContent=ns;
+  });
+
+  // At midnight, refresh days
+  if(h===0&&m===0&&s===0) renderDays();
+}
+
+function startTicker(){
+  if(tickerID) clearInterval(tickerID);
+  tick();
+  tickerID=setInterval(tick,1000);
+}
+
+// ── Holiday drawer ──
+function buildDrawer(){
+  const drawer=document.getElementById('holDrawer');
+  drawer.innerHTML='';
+
+  // Combine range of both entries
+  const todayMid=new Date(); todayMid.setHours(0,0,0,0);
+  const ends=entries.map(e=>{const d=new Date(e.date);d.setHours(0,0,0,0);return d;});
+  const maxEnd=new Date(Math.max(...ends));
+
+  const allHols=[];
+  for(let y=todayMid.getFullYear();y<=maxEnd.getFullYear();y++)
+    holidaysForYear(y,true,true).forEach(h=>allHols.push(h));
+  allHols.sort((a,b)=>a.date-b.date);
+
+  allHols.forEach(h=>{
+    const inAnyRange=ends.some(e=>h.date>=todayMid&&h.date<=e);
+    const isExcluded=(h.type==='nacional'&&incNac)||(h.type==='municipal'&&incMun);
+    const row=document.createElement('div'); row.className='h-item';
+    const left=document.createElement('div'); left.className='h-left';
+    const nm=document.createElement('div'); nm.className='h-name'; nm.textContent=h.name;
+    const dt=document.createElement('div'); dt.className='h-date';
+    dt.textContent=h.date.toLocaleDateString('pt-PT',{day:'2-digit',month:'short',year:'numeric'});
+    left.appendChild(nm); left.appendChild(dt);
+    const badge=document.createElement('span');
+    badge.className=`h-badge ${inAnyRange&&isExcluded?'excluded':h.type}`;
+    badge.textContent=inAnyRange&&isExcluded?'excluído':(h.type==='nacional'?'Nacional':'Lisboa');
+    row.appendChild(left); row.appendChild(badge);
+    drawer.appendChild(row);
+  });
+}
+
+// ── Settings ──
+const overlay=document.getElementById('settingsOverlay');
+const sheet=document.getElementById('settingsSheet');
+
+function openSettings(){
+  entries.forEach((en,i)=>{
+    const idx=i+1;
+    document.getElementById('cfgLabel'+idx).value=en.label;
+    const d=en.date;
+    const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+    document.getElementById('cfgDate'+idx).value=`${yyyy}-${mm}-${dd}`;
+    document.getElementById('cfgTime'+idx).value=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  document.getElementById('chkNacional').checked=incNac;
+  document.getElementById('chkMunicipal').checked=incMun;
+  overlay.classList.add('open'); sheet.classList.add('open');
+}
+function closeSettings(){
+  overlay.classList.remove('open'); sheet.classList.remove('open');
+}
+
+document.getElementById('btnSettings').addEventListener('click',openSettings);
+overlay.addEventListener('click',closeSettings);
+document.getElementById('btnApply').addEventListener('click',()=>{
+  [0,1].forEach(i=>{
+    const idx=i+1;
+    const lv=document.getElementById('cfgLabel'+idx).value.trim();
+    const dv=document.getElementById('cfgDate'+idx).value;
+    const tv=document.getElementById('cfgTime'+idx).value||'00:00';
+    if(lv) entries[i].label=lv;
+    if(dv){const p=new Date(`${dv}T${tv}:00`);if(!isNaN(p)) entries[i].date=p;}
+  });
+  incNac=document.getElementById('chkNacional').checked;
+  incMun=document.getElementById('chkMunicipal').checked;
+  closeSettings();
+  renderDays();
+});
+
+document.getElementById('holBtn').addEventListener('click',()=>{
+  document.getElementById('holDrawer').classList.toggle('open');
+  document.getElementById('holChevron').classList.toggle('open');
+});
+
+// ── Boot ──
+async function boot(){
+  await loadConfig();
+  renderDays();
+  startTicker();
+  const loading=document.getElementById('loading');
+  loading.classList.add('fade-out');
+  setTimeout(()=>{loading.style.display='none';},500);
+  document.getElementById('app').classList.add('visible');
+}
+boot();
+</script>
+</body>
+</html>
