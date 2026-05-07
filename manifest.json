@@ -1,7 +1,7 @@
 {
   "name": "Quanto Falta?",
   "short_name": "Quanto Falta?",
-  "description": "Contagem regressiva de dias úteis com feriados de Portugal e Lisboa",
+  "description": "Contagem de prazos GA ATD Core",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1A1410",
