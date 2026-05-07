@@ -10,10 +10,10 @@
 #   FERIADOS_NACIONAIS=true
 #   FERIADOS_MUNICIPAIS=true
 
-LABEL_1=Férias de Verão
+LABEL_1=Live Demo - 15jun2026
 DATE_1=2026-06-15 00:00
 
-LABEL_2=Fim do Ano
+LABEL_2=Prazo Final Formulários - 30jun2026
 DATE_2=2026-07-01 00:00
 
 FERIADOS_NACIONAIS=true
