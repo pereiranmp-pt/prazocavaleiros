@@ -1,9 +1,9 @@
 # Quanto Falta? — Configuração
 # Define até 2 contagens regressivas.
 # Formato de cada entrada:
-#   LABEL_1=Texto do label (ex: Férias, Projeto X, Reunião)
+#   LABEL_1=Live Demo - 15jjun2026
 #   DATE_1=YYYY-MM-DD HH:MM
-#   LABEL_2=Texto do segundo label
+#   LABEL_2=Prazo Final - 30jun2026
 #   DATE_2=YYYY-MM-DD HH:MM
 #
 # Feriados a excluir (true/false):
